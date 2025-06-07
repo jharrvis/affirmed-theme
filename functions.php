@@ -40,33 +40,36 @@ function affirmed_theme_scripts() {
 }
 add_action('wp_enqueue_scripts', 'affirmed_theme_scripts');
 
-// Customizer sections
-function affirmed_customizer_sections() {
-    if (!class_exists('Kirki')) return;
-
-    // Author Section
-    Kirki::add_section('author_section', array(
-        'title'    => esc_html__('Author Section', 'affirmed-theme'),
-        'priority' => 30,
-    ));
-
-    Kirki::add_field('affirmed_theme', array(
-        'type'     => 'textarea',
-        'settings' => 'author_bio',
-        'label'    => esc_html__('Author Bio', 'affirmed-theme'),
-        'section'  => 'author_section',
-        'default'  => 'With the goal of infusing your life with confidence and gratitude, Pastor Tony Ray Smith has created a collection of positive affirmations enhanced with inspirational quotes and scriptures.',
-    ));
-
-    // (Seluruh kode untuk Kirki::add_section dan add_field Features, Sample, Contact... tetap sama)
-    
-    // Masukkan semua field "features_section", "sample_section", dan "contact_section" seperti sebelumnya.
-    // Anda tidak perlu ubah bagian tersebut karena sudah benar.
+// Include Kirki customizer configuration
+if (file_exists(get_template_directory() . '/inc/customizer.php')) {
+    require_once get_template_directory() . '/inc/customizer.php';
 }
-add_action('init', 'affirmed_customizer_sections');
 
-// Get theme option
+// Include Kirki installer helper
+if (file_exists(get_template_directory() . '/inc/kirki-installer.php')) {
+    require_once get_template_directory() . '/inc/kirki-installer.php';
+}
+
+// Include Stripe payment handler
+if (file_exists(get_template_directory() . '/inc/stripe-simple-handler.php')) {
+    require_once get_template_directory() . '/inc/stripe-simple-handler.php';
+}
+
+// Include debug helper (optional - for development)
+if (file_exists(get_template_directory() . '/inc/debug-customizer.php')) {
+    require_once get_template_directory() . '/inc/debug-customizer.php';
+}
+
+// Get theme option helper function
 function affirmed_get_option($option, $default = '') {
+    // First check if we're using Kirki with prefixed options
+    $kirki_options = get_theme_mod('affirmed_theme_options', array());
+    
+    if (!empty($kirki_options) && isset($kirki_options[$option])) {
+        return $kirki_options[$option];
+    }
+    
+    // Fallback to individual theme_mod for backward compatibility
     return get_theme_mod($option, $default);
 }
 
@@ -104,9 +107,16 @@ add_action('after_setup_theme', 'affirmed_image_sizes');
 // Admin notice
 function affirmed_admin_notice() {
     if (!class_exists('Kirki') && current_user_can('install_plugins')) {
-        echo '<div class="notice notice-warning is-dismissible">';
-        echo '<p>' . esc_html__('The Affirmed theme requires the Kirki Customizer Framework plugin to be installed and activated for full functionality.', 'affirmed-theme') . '</p>';
-        echo '</div>';
+        $screen = get_current_screen();
+        
+        // Show notice on themes page and in customizer
+        if ($screen && ($screen->id === 'themes' || $screen->id === 'customize')) {
+            echo '<div class="notice notice-warning is-dismissible">';
+            echo '<p><strong>' . esc_html__('Affirmed Theme Notice:', 'affirmed-theme') . '</strong> ';
+            echo esc_html__('The Kirki Customizer Framework plugin is recommended for full theme functionality. ', 'affirmed-theme');
+            echo '<a href="' . admin_url('plugin-install.php?s=kirki&tab=search&type=term') . '">' . esc_html__('Install Kirki Plugin', 'affirmed-theme') . '</a></p>';
+            echo '</div>';
+        }
     }
 }
 add_action('admin_notices', 'affirmed_admin_notice');
@@ -124,3 +134,61 @@ function affirmed_widgets_init() {
     ));
 }
 add_action('widgets_init', 'affirmed_widgets_init');
+
+// Add custom CSS from customizer
+function affirmed_custom_css() {
+    $custom_css = affirmed_get_option('custom_css', '');
+    
+    if (!empty($custom_css)) {
+        wp_add_inline_style('affirmed-style', $custom_css);
+    }
+}
+add_action('wp_enqueue_scripts', 'affirmed_custom_css', 20);
+
+// Add custom header code
+function affirmed_custom_header_code() {
+    $header_code = affirmed_get_option('custom_header_code', '');
+    $analytics = affirmed_get_option('google_analytics', '');
+    
+    if (!empty($header_code)) {
+        echo $header_code;
+    }
+    
+    if (!empty($analytics)) {
+        echo $analytics;
+    }
+}
+add_action('wp_head', 'affirmed_custom_header_code', 100);
+
+// Add custom footer code
+function affirmed_custom_footer_code() {
+    $footer_code = affirmed_get_option('custom_footer_code', '');
+    
+    if (!empty($footer_code)) {
+        echo $footer_code;
+    }
+}
+add_action('wp_footer', 'affirmed_custom_footer_code', 100);
+
+// Back to top button
+function affirmed_back_to_top() {
+    if (affirmed_get_option('enable_back_to_top', true)) {
+        echo '<button id="back-to-top" style="display:none;position:fixed;bottom:20px;right:20px;z-index:999;background:#10b981;color:white;border:none;border-radius:50%;width:50px;height:50px;cursor:pointer;"><i class="fas fa-arrow-up"></i></button>';
+        echo '<script>
+            jQuery(document).ready(function($) {
+                $(window).scroll(function() {
+                    if ($(this).scrollTop() > 300) {
+                        $("#back-to-top").fadeIn();
+                    } else {
+                        $("#back-to-top").fadeOut();
+                    }
+                });
+                $("#back-to-top").click(function() {
+                    $("html, body").animate({ scrollTop: 0 }, 600);
+                    return false;
+                });
+            });
+        </script>';
+    }
+}
+add_action('wp_footer', 'affirmed_back_to_top');
